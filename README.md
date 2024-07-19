@@ -10,7 +10,7 @@ Also see some code examples for the SDK [here](https://github.com/walterbm/coher
 
 ## Usage
 
-To use this crate, you must first obtain a [Cohere API key](https://dashboard.cohere.ai/welcome/register). Once you have an API key you can either set it as the `COHERE_API_KEY` environment variable or pass it directly when constructing the client.
+To use this crate, you must first obtain a [Cohere API key](https://dashboard.cohere.ai/welcome/register). Once you have an API key you can either set it as the `CO_API_KEY` environment variable or pass it directly when constructing the client.
 
 Additionally, this crate relies on the [tokio](https://tokio.rs/) async-runtime to make all the API operations non-blocking.
 
@@ -25,7 +25,7 @@ use cohere_rust::Cohere;
 
 #[tokio::main]
 async fn main() {
-    // automatically reads API key from `COHERE_API_KEY`
+    // automatically reads API key from `CO_API_KEY`
     let co = Cohere::default();
 
     let request = GenerateRequest {

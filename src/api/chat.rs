@@ -6,9 +6,20 @@ use super::GenerateModel;
 pub struct ChatRequest<'input> {
     /// The chat message from the user to the model.
     pub message: &'input str,
-    /// optional - The model to use for text generation. Custom models can also be supplied with their full ID. Defaults to 'command'.
+    /// The model to use for text generation. Custom models can also be supplied with their full ID. Defaults to `command-r-plus`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<GenerateModel>,
+    // optional - When specified, the default Cohere preamble will be replaced with the provided one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preamble: Option<String>,
+    /// optional - A list of previous messages between the user and the model,
+    /// meant to give the model conversational context for responding to the user's message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_history: Option<&'input Vec<ChatMessage>>,
+    /// optional - Previous conversations can be stored and resumed by providing the conversation's identifier.
+    /// If a conversation with this id does not already exist, a new conversation will be created.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<String>,
     /// optional - Dictates how the prompt will be constructed. When set to 'AUTO' some parts of chat history and documents will be dropped
     /// to construct a prompt that fits within the model's context length limit.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16,17 +27,6 @@ pub struct ChatRequest<'input> {
     /// optional - A non-negative float that tunes the degree of randomness in generation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
-    /// optional - Previous conversations can be stored and resumed by providing the conversation's identifier.
-    /// If a conversation with this id does not already exist, a new conversation will be created.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_id: Option<String>,
-    /// optional - A list of previous messages between the user and the model,
-    /// meant to give the model conversational context for responding to the user's message.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chat_history: Option<&'input Vec<ChatMessage>>,
-    // optional - When specified, the default Cohere preamble will be replaced with the provided one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preamble: Option<String>,
     // optional - The maximum number of tokens the model will generate as part of the response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u64>,
@@ -45,10 +45,19 @@ pub enum ChatMessage {
 }
 
 #[derive(Serialize, Debug)]
-pub(crate) struct ChatStreamRequest<'input> {
+pub struct ChatStreamRequest<'input> {
     #[serde(flatten)]
-    pub request: &'input ChatRequest<'input>,
-    pub stream: bool,
+    pub request: ChatRequest<'input>,
+    stream: bool,
+}
+
+impl<'input> From<ChatRequest<'input>> for ChatStreamRequest<'input> {
+    fn from(request: ChatRequest<'input>) -> Self {
+        Self {
+            request,
+            stream: true,
+        }
+    }
 }
 
 #[derive(strum_macros::Display, Serialize, Debug)]
@@ -80,16 +89,16 @@ pub struct ChatResponse {
 
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(tag = "event_type")]
-pub enum ChatStreamResponse {
+pub enum StreamEvent {
     #[serde(rename = "stream-start")]
-    ChatStreamStart {
+    Start {
         generation_id: String,
         is_finished: bool,
     },
     #[serde(rename = "text-generation")]
-    ChatTextGeneration { is_finished: bool, text: String },
+    TextGeneration { is_finished: bool, text: String },
     #[serde(rename = "stream-end")]
-    ChatStreamEnd {
+    End {
         finish_reason: String,
         is_finished: bool,
         response: ChatResponse,

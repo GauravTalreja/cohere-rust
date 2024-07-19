@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use api::{
-    chat::{ChatRequest, ChatStreamRequest, ChatStreamResponse},
+    chat::{ChatRequest, ChatResponse, ChatStreamRequest, StreamEvent},
     classify::{Classification, ClassifyRequest, ClassifyResponse},
     detect_language::{DetectLanguageRequest, DetectLanguageResponse, DetectLanguageResult},
     detokenize::{DetokenizeRequest, DetokenizeResponse},
     embed::{EmbedRequest, EmbedResponse},
     generate::{GenerateRequest, GenerateResponse, Generation},
-    rerank::{ReRankRequest, ReRankResponse, ReRankResult},
+    rerank::{RerankRequest, RerankResponse, RerankResult},
     summarize::{SummarizeRequest, SummarizeResponse},
     tokenize::{TokenizeRequest, TokenizeResponse},
 };
@@ -61,8 +61,8 @@ struct CohereApiErrorResponse {
 
 impl Default for Cohere {
     fn default() -> Self {
-        let api_key = std::env::var("COHERE_API_KEY")
-            .expect("please provide a Cohere API key with the 'COHERE_API_KEY' env variable");
+        let api_key = std::env::var("CO_API_KEY")
+            .expect("please provide a Cohere API key with the 'CO_API_KEY' env variable");
         Cohere::new(format!("{COHERE_API_BASE_URL}/{COHERE_API_V1}"), api_key)
     }
 }
@@ -134,38 +134,6 @@ impl Cohere {
         }
     }
 
-    async fn request_stream<Request: Serialize, Response: DeserializeOwned + Send + 'static>(
-        &self,
-        route: &'static str,
-        payload: Request,
-    ) -> Result<Receiver<Result<Response, CohereStreamError>>, CohereApiError> {
-        let url =
-            Url::parse(&format!("{}/{route}", self.api_url)).expect("api url should be valid");
-
-        let mut response = self.client.post(url).json(&payload).send().await?;
-
-        let (tx, rx) = channel::<Result<Response, CohereStreamError>>(32);
-        tokio::spawn(async move {
-            while let Ok(Some(chunk)) = response.chunk().await {
-                if chunk.is_empty() {
-                    break;
-                }
-                match serde_json::from_slice::<Response>(&chunk) {
-                    Ok(v) => tx
-                        .send(Ok(v))
-                        .await
-                        .expect("Failed to send message to channel"),
-                    Err(e) => tx
-                        .send(Err(CohereStreamError::from(e)))
-                        .await
-                        .expect("Failed to send error to channel"),
-                }
-            }
-        });
-
-        Ok(rx)
-    }
-
     /// Verify that the Cohere API key being used is valid
     pub async fn check_api_key(&self) -> Result<(), CohereApiError> {
         let response = self
@@ -194,16 +162,36 @@ impl Cohere {
     pub async fn chat<'input>(
         &self,
         request: &ChatRequest<'input>,
-    ) -> Result<Receiver<Result<ChatStreamResponse, CohereStreamError>>, CohereApiError> {
-        let stream_request = ChatStreamRequest {
-            request,
-            stream: true,
-        };
-        let response = self
-            .request_stream::<_, ChatStreamResponse>("chat", stream_request)
-            .await?;
+    ) -> Result<ChatResponse, CohereApiError> {
+        let response = self.request::<_, ChatResponse>("chat", request).await?;
 
         Ok(response)
+    }
+
+    /// Chat with Cohere's LLM
+    pub async fn chat_stream<'input>(
+        &self,
+        request: &ChatStreamRequest<'input>,
+    ) -> Result<Receiver<Result<StreamEvent, CohereStreamError>>, CohereApiError> {
+        let url = Url::parse(&format!("{}/chat", self.api_url)).expect("api url should be valid");
+        let mut response = self.client.post(url).json(&request).send().await?;
+        let (tx, rx) = channel::<Result<StreamEvent, CohereStreamError>>(32);
+        tokio::spawn(async move {
+            while let Ok(Some(chunk)) = response.chunk().await {
+                println!("{:?}\n", chunk);
+                let event = serde_json::from_slice::<StreamEvent>(&chunk);
+                let end = event
+                    .as_ref()
+                    .is_ok_and(|e| matches!(e, StreamEvent::End { .. }));
+                tx.send(event.map_err(|e| CohereStreamError::from(e)))
+                    .await
+                    .expect("Failed to send message to channel");
+                if end {
+                    break;
+                }
+            }
+        });
+        Ok(rx)
     }
 
     /// Returns text embeddings.
@@ -280,9 +268,9 @@ impl Cohere {
     /// Takes a query plus an list of texts and return an ordered array with each text assigned a relevance score.
     pub async fn rerank<'input>(
         &self,
-        request: &ReRankRequest<'input>,
-    ) -> Result<Vec<ReRankResult>, CohereApiError> {
-        let response = self.request::<_, ReRankResponse>("rerank", request).await?;
+        request: &RerankRequest<'input>,
+    ) -> Result<Vec<RerankResult>, CohereApiError> {
+        let response = self.request::<_, RerankResponse>("rerank", request).await?;
 
         Ok(response.results)
     }

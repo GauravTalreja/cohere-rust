@@ -4,13 +4,13 @@ mod tests {
 
     use cohere_rust::{
         api::{
-            chat::{ChatRequest, ChatResponse, ChatStreamResponse},
+            chat::{ChatRequest, ChatResponse, ChatStreamRequest, StreamEvent},
             classify::{Classification, ClassifyExample, ClassifyRequest, LabelProperties},
             detect_language::{DetectLanguageRequest, DetectLanguageResult},
             detokenize::DetokenizeRequest,
             embed::EmbedRequest,
             generate::{GenerateRequest, ReturnLikelihoods},
-            rerank::{ReRankModel, ReRankRequest, ReRankResult},
+            rerank::{RerankModel, RerankRequest, RerankResult},
             summarize::{
                 SummarizeExtractiveness, SummarizeFormat, SummarizeLength, SummarizeRequest,
             },
@@ -442,10 +442,10 @@ mod tests {
         let client = Cohere::new(mock_url, "test-key");
 
         let response = client
-            .chat(&ChatRequest {
+            .chat_stream(&ChatStreamRequest::from(ChatRequest {
                 message: "who wrote the book where is my cheese?",
                 ..Default::default()
-            })
+            }))
             .await;
 
         // assert that mock endpoint was called
@@ -455,31 +455,31 @@ mod tests {
 
         let mut stream = response.unwrap();
         let expected_messages = [
-            ChatStreamResponse::ChatStreamStart {
+            StreamEvent::Start {
                 generation_id: "0c9cb118-f841-4588-b835-f9a4fe2c572e".to_string(),
                 is_finished: false,
             },
-            ChatStreamResponse::ChatTextGeneration {
+            StreamEvent::TextGeneration {
                 is_finished: false,
                 text: " Thomas".to_string(),
             },
-            ChatStreamResponse::ChatTextGeneration {
+            StreamEvent::TextGeneration {
                 is_finished: false,
                 text: " P".to_string(),
             },
-            ChatStreamResponse::ChatTextGeneration {
+            StreamEvent::TextGeneration {
                 is_finished: false,
                 text: ".".to_string(),
             },
-            ChatStreamResponse::ChatTextGeneration {
+            StreamEvent::TextGeneration {
                 is_finished: false,
                 text: " Frank".to_string(),
             },
-            ChatStreamResponse::ChatTextGeneration {
+            StreamEvent::TextGeneration {
                 is_finished: false,
                 text: ".".to_string(),
             },
-            ChatStreamResponse::ChatStreamEnd {
+            StreamEvent::End {
                 finish_reason: "COMPLETE".to_string(),
                 is_finished: true,
                 response: ChatResponse {
@@ -662,10 +662,10 @@ mod tests {
             "Capital punishment (the death penalty) has existed in the United States since beforethe United States was a country. As of 2017, capital punishment is legal in 30 of the 50 states.",
         ];
 
-        let request = ReRankRequest {
+        let request = RerankRequest {
             query: "What is the capital of the United States?",
             documents: &documents.map(|d| d.to_string()),
-            model: ReRankModel::English,
+            model: RerankModel::EnglishV2,
             top_n: Some(4),
             ..Default::default()
         };
@@ -685,19 +685,19 @@ mod tests {
 
         assert_eq!(
             vec![
-                ReRankResult {
+                RerankResult {
                     index: 2,
                     relevance_score: 0.98005307
                 },
-                ReRankResult {
+                RerankResult {
                     index: 3,
                     relevance_score: 0.27904198
                 },
-                ReRankResult {
+                RerankResult {
                     index: 0,
                     relevance_score: 0.10194652
                 },
-                ReRankResult {
+                RerankResult {
                     index: 1,
                     relevance_score: 0.0721122
                 }

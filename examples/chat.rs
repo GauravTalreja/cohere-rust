@@ -1,4 +1,4 @@
-use cohere_rust::api::chat::{ChatMessage, ChatRequest};
+use cohere_rust::api::chat::{ChatMessage, ChatRequest, ChatStreamRequest};
 use cohere_rust::api::GenerateModel;
 use cohere_rust::Cohere;
 
@@ -22,8 +22,9 @@ async fn main() {
         chat_history: Some(&chat_history),
         ..Default::default()
     };
+    let request = ChatStreamRequest::from(request);
 
-    match co.chat(&request).await {
+    match co.chat_stream(&request).await {
         Ok(mut rx) => {
             while let Some(message) = rx.recv().await {
                 match message {

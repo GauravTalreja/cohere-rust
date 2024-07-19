@@ -1,5 +1,5 @@
 use cohere_rust::{
-    api::rerank::{ReRankModel, ReRankRequest},
+    api::rerank::{RerankModel, RerankRequest},
     Cohere,
 };
 
@@ -14,10 +14,10 @@ async fn main() {
         "Capital punishment (the death penalty) has existed in the United States since beforethe United States was a country. As of 2017, capital punishment is legal in 30 of the 50 states.",
     ];
 
-    let request = ReRankRequest {
+    let request = RerankRequest {
         query: "What is the capital of the United States?",
         documents: &documents.map(|d| d.to_string()),
-        model: ReRankModel::English,
+        model: RerankModel::EnglishV2,
         top_n: Some(2),
         ..Default::default()
     };
